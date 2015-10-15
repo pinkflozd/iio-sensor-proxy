@@ -630,8 +630,6 @@ buffer_drv_data_free (BufferDrvData *buffer_data)
 
 	disable_ring_buffer (buffer_data);
 
-	g_free (buffer_data->trigger_name);
-
 	for (i = 0; i < buffer_data->channels_count; i++)
 		channel_info_free (buffer_data->channels[i]);
 	g_free (buffer_data->channels);
