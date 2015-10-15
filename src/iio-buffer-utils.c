@@ -175,12 +175,30 @@ iioutils_get_param_float (float      *output,
 	if (sysfsfp) {
 		fscanf (sysfsfp, "%f", output);
 		fclose (sysfsfp);
+		g_free (filename);
+		return 0;
+	}
+
+	g_free (filename);
+
+	if (g_strcmp0 ("scale", param_name) == 0 &&
+		g_strcmp0 ("in_timestamp", name) == 0 ) {
+		*output = 1;
+		return 0;
+	}
+
+	if (g_strcmp0 ("offset", param_name) == 0 &&
+		g_strcmp0 ("in_timestamp", name) == 0 ) {
+		*output = 0;
+		return 0;
+	}
+
+	if (g_strcmp0 ("offset", param_name) == 0) {
+		*output = 0;
 	} else {
 		ret = -errno;
 		g_warning ("Failed to read float from %s", filename);
 	}
-
-	g_free (filename);
 
 	return ret;
 }
