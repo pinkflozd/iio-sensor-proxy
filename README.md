@@ -59,6 +59,7 @@ has been stopped:
 `systemctl stop iio-sensor-proxy.service`
 and attach the output of:
 `G_MESSAGES_DEBUG=all /usr/sbin/iio-sensor-proxy`
+running as ```root```.
 
 Tested on
 ---------
@@ -72,3 +73,4 @@ Tested on
 - Lenovo ThinkPad Twist
 - MacBook Pro (8.2)
 - Lenovo X1 Carbon 2014 (rev2)
+- MacBook Air (6,2)
