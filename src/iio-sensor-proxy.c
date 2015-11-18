@@ -38,6 +38,8 @@
 
 #define NUM_SENSOR_TYPES DRIVER_TYPE_COMPASS + 1
 
+#define ORIENTATIONS 5
+
 typedef struct {
 	GMainLoop *loop;
 	GDBusNodeInfo *introspection_data;
@@ -52,6 +54,8 @@ typedef struct {
 	/* Accelerometer */
 	int accel_x, accel_y, accel_z;
 	OrientationUp previous_orientation;
+	OrientationUp orientation_quirk[ORIENTATIONS];
+	OrientationUp orientation_quirk_reverse[ORIENTATIONS];
 
 	/* Light */
 	gdouble previous_level;
@@ -203,7 +207,7 @@ send_dbus_event (SensorData     *data,
 		if (has_accel)
 			mask |= PROP_ACCELEROMETER_ORIENTATION;
 		else
-			data->previous_orientation = ORIENTATION_UNDEFINED;
+			data->previous_orientation = data->orientation_quirk[ (int)ORIENTATION_UNDEFINED];
 	}
 
 	if (mask & PROP_ACCELEROMETER_ORIENTATION) {
@@ -591,7 +595,7 @@ accel_changed_func (SensorDriver *driver,
 	//FIXME handle errors
 	g_debug ("Accel sent by driver (quirk applied): %d, %d, %d", readings->accel_x, readings->accel_y, readings->accel_z);
 
-	orientation = orientation_calc (data->previous_orientation, readings->accel_x, readings->accel_y, readings->accel_z);
+	orientation = data->orientation_quirk[ (int)orientation_calc ( (OrientationUp)data->orientation_quirk_reverse[data->previous_orientation], readings->accel_x, readings->accel_y, readings->accel_z)];
 
 	data->accel_x = readings->accel_x;
 	data->accel_y = readings->accel_y;
@@ -771,15 +775,32 @@ int main (int argc, char **argv)
 	int ret = 0;
 	const gchar * const subsystems[] = { "iio", "input", "platform", NULL };
 	guint i;
+	FILE *orientation_quirk_fp;
 
 	/* g_setenv ("G_MESSAGES_DEBUG", "all", TRUE); */
 
 	data = g_new0 (SensorData, 1);
 	data->previous_orientation = ORIENTATION_UNDEFINED;
 	data->uses_lux = TRUE;
+	for (i = 0; i < ORIENTATIONS; i++) {
+		data->orientation_quirk[i] = (OrientationUp)i;
+	}
 
 	/* Set up D-Bus */
 	setup_dbus (data);
+
+	if( (orientation_quirk_fp = fopen ("/etc/orientation_quirk.conf", "r"))) {
+		g_debug("Found orientation quirk: /etc/orientation_quirk.conf.");
+		char quirk[ORIENTATIONS];
+		if (fread (quirk, 1, ORIENTATIONS, orientation_quirk_fp) == ORIENTATIONS) {
+			for (i = 0; i < ORIENTATIONS; i++) {
+				data->orientation_quirk[i] = (OrientationUp) (quirk[i] - '0');
+				data->orientation_quirk_reverse[quirk[i] - '0'] = (OrientationUp) i;
+				g_debug("Orientation quirk: %c", quirk[i]);
+			}
+		}
+		fclose (orientation_quirk_fp);
+	}
 
 	client = g_udev_client_new (subsystems);
 	if (!find_sensors (client, data)) {
