@@ -65,7 +65,7 @@ process_scan (IIOSensorData data, DrvData *or_data)
 	 * we invert both x, and y values */
 	accel_x = -accel_x;
 	accel_y = accel_y;
-	accel_z = accel_z;
+	accel_z = -accel_z;
 
 	//FIXME report errors
 	readings.accel_x = accel_x * scale;
