@@ -38,7 +38,7 @@
 
 #define NUM_SENSOR_TYPES DRIVER_TYPE_COMPASS + 1
 
-#define ORIENTATIONS 4
+#define ORIENTATIONS 5
 
 typedef struct {
 	GMainLoop *loop;
