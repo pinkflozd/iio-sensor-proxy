@@ -16,6 +16,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <endian.h>
 
 /**
  * iio_channel_info - information about a given channel
@@ -175,12 +176,30 @@ iioutils_get_param_float (float      *output,
 	if (sysfsfp) {
 		fscanf (sysfsfp, "%f", output);
 		fclose (sysfsfp);
+		g_free (filename);
+		return 0;
+	}
+
+	g_free (filename);
+
+	if (g_strcmp0 ("scale", param_name) == 0 &&
+		g_strcmp0 ("in_timestamp", name) == 0 ) {
+		*output = 1;
+		return 0;
+	}
+
+	if (g_strcmp0 ("offset", param_name) == 0 &&
+		g_strcmp0 ("in_timestamp", name) == 0 ) {
+		*output = 0;
+		return 0;
+	}
+
+	if (g_strcmp0 ("offset", param_name) == 0) {
+		*output = 0;
 	} else {
 		ret = -errno;
 		g_warning ("Failed to read float from %s", filename);
 	}
-
-	g_free (filename);
 
 	return ret;
 }
@@ -476,27 +495,110 @@ process_scan_1 (char              *data,
 
 		switch (buffer_data->channels[k]->bytes) {
 			/* only a few cases implemented so far */
-		case 4:
-			if (!buffer_data->channels[k]->is_signed) {
-				guint32 val = *(guint32 *) (data + buffer_data->channels[k]->location);
-				val = val >> buffer_data->channels[k]->shift;
-				if (buffer_data->channels[k]->bits_used < 32) val &= ((guint32) 1 << buffer_data->channels[k]->bits_used) - 1;
-				*ch_val = (int) val;
-				*ch_present = TRUE;
+		case 2:
+			if (!buffer_data->channels[k]->be) {
+				guint16 cpuval = *(guint16 *) (data + buffer_data->channels[k]->location);
+#if __BYTE_ORDER == __BIG_ENDIAN
+				cpuval = ((cpuval& 0xFF) << 8) | (cpuval >> 8);
+#endif /* __BIG_ENDIAN */
+				if (!buffer_data->channels[k]->is_signed) {
+					guint16 val = (guint16) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 16) val &= ((guint16) 1 << buffer_data->channels[k]->bits_used) - 1;
+					*ch_val = (int) val;
+					*ch_present = TRUE;
+				} else {
+					gint16 val = (gint16) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 16) val &= ((guint16) 1 << buffer_data->channels[k]->bits_used) - 1;
+					val = (gint16) (val << (16 - buffer_data->channels[k]->bits_used)) >> (16 - buffer_data->channels[k]->bits_used);
+					*ch_val = (int) val;
+					if (buffer_data->channels[k]->scale)
+						*ch_scale = buffer_data->channels[k]->scale;
+					else
+						*ch_scale = 1.0;
+					*ch_present = TRUE;
+				}
 			} else {
-				gint32 val = *(gint32 *) (data + buffer_data->channels[k]->location);
-				val = val >> buffer_data->channels[k]->shift;
-				if (buffer_data->channels[k]->bits_used < 32) val &= ((guint32) 1 << buffer_data->channels[k]->bits_used) - 1;
-				val = (gint32) (val << (32 - buffer_data->channels[k]->bits_used)) >> (32 - buffer_data->channels[k]->bits_used);
-				*ch_val = (int) val;
-				if (buffer_data->channels[k]->scale)
-					*ch_scale = buffer_data->channels[k]->scale;
-				else
-					*ch_scale = 1.0;
-				*ch_present = TRUE;
+				guint16 cpuval = *(guint16 *) (data + buffer_data->channels[k]->location);
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+				cpuval = ((cpuval& 0xFF) << 8) | (cpuval >> 8);
+#endif /* __LITTLE_ENDIAN */
+				if (!buffer_data->channels[k]->is_signed) {
+					guint16 val = (guint16) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 16) val &= ((guint16) 1 << buffer_data->channels[k]->bits_used) - 1;
+					*ch_val = (int) val;
+					*ch_present = TRUE;
+				} else {
+					gint16 val = (gint16) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 16) val &= ((guint16) 1 << buffer_data->channels[k]->bits_used) - 1;
+					val = (gint16) (val << (16 - buffer_data->channels[k]->bits_used)) >> (16 - buffer_data->channels[k]->bits_used);
+					*ch_val = (int) val;
+					if (buffer_data->channels[k]->scale)
+						*ch_scale = buffer_data->channels[k]->scale;
+					else
+						*ch_scale = 1.0;
+					*ch_present = TRUE;
+				}
 			}
 			break;
-		case 2:
+		case 4:
+       			if (!buffer_data->channels[k]->be) {
+				guint32 cpuval = *(guint32 *) (data + buffer_data->channels[k]->location);
+#if __BYTE_ORDER == __BIG_ENDIAN
+				cpuval = ((cpuval & 0xFF) << 24)
+					| ((cpuval & 0xFF00) << 8)
+					| ((cpuval >> 8) & 0xFF00)
+					| (cpuval >> 24);
+#endif /* __BIG_ENDIAN */
+				if (!buffer_data->channels[k]->is_signed) {
+					guint32 val = (guint32) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 32) val &= ((guint32) 1 << buffer_data->channels[k]->bits_used) - 1;
+					*ch_val = (int) val;
+					*ch_present = TRUE;
+				} else {
+					gint32 val = (gint32) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 32) val &= ((guint32) 1 << buffer_data->channels[k]->bits_used) - 1;
+					val = (gint32) (val << (32 - buffer_data->channels[k]->bits_used)) >> (32 - buffer_data->channels[k]->bits_used);
+					*ch_val = (int) val;
+					if (buffer_data->channels[k]->scale)
+						*ch_scale = buffer_data->channels[k]->scale;
+					else
+						*ch_scale = 1.0;
+					*ch_present = TRUE;
+				}
+			} else {
+				guint32 cpuval = *(guint32 *) (data + buffer_data->channels[k]->location);
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+				cpuval = ((cpuval & 0xFF) << 24)
+					| ((cpuval & 0xFF00) << 8)
+					| ((cpuval >> 8) & 0xFF00)
+					| (cpuval >> 24);
+#endif /* __LITTLE_ENDIAN */
+				if (!buffer_data->channels[k]->is_signed) {
+					guint32 val = (guint32) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 32) val &= ((guint32) 1 << buffer_data->channels[k]->bits_used) - 1;
+					*ch_val = (int) val;
+					*ch_present = TRUE;
+				} else {
+					gint32 val = (gint32) cpuval;
+					val = val >> buffer_data->channels[k]->shift;
+					if (buffer_data->channels[k]->bits_used < 32) val &= ((guint32) 1 << buffer_data->channels[k]->bits_used) - 1;
+					val = (gint32) (val << (32 - buffer_data->channels[k]->bits_used)) >> (32 - buffer_data->channels[k]->bits_used);
+					*ch_val = (int) val;
+					if (buffer_data->channels[k]->scale)
+						*ch_scale = buffer_data->channels[k]->scale;
+					else
+						*ch_scale = 1.0;
+					*ch_present = TRUE;
+				}
+			}
+			break;
 		case 8:
 			g_error ("Process %d bytes channels not supported yet", buffer_data->channels[k]->bytes);
 		default:
@@ -629,8 +731,6 @@ buffer_drv_data_free (BufferDrvData *buffer_data)
 	g_clear_object (&buffer_data->device);
 
 	disable_ring_buffer (buffer_data);
-
-	g_free (buffer_data->trigger_name);
 
 	for (i = 0; i < buffer_data->channels_count; i++)
 		channel_info_free (buffer_data->channels[i]);

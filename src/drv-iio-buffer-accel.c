@@ -107,29 +107,41 @@ bail:
 	g_free(data.data);
 }
 
-static char *
+static const gchar *
 get_trigger_name (GUdevDevice *device)
 {
 	GList *devices, *l;
 	GUdevClient *client;
 	gboolean has_trigger = FALSE;
-	char *trigger_name;
+	char *trigger_name_acceltd;
+	char *trigger_name_inv;
+	const gchar * device_name;
+	const gchar * device_number;
+	const gchar * trigger_name;
 	const gchar * const subsystems[] = { "iio", NULL };
 
 	client = g_udev_client_new (subsystems);
 	devices = g_udev_client_query_by_subsystem (client, "iio");
 
 	/* Find the associated trigger */
-	trigger_name = g_strdup_printf ("accel_3d-dev%s", g_udev_device_get_number (device));
+	device_number = g_udev_device_get_number (device);
+	trigger_name_acceltd = g_strdup_printf ("accel_3d-dev%s", device_number);
+	trigger_name_inv = g_strdup_printf ("i2c-INVN6500:00-dev%s", device_number);
 	for (l = devices; l != NULL; l = l->next) {
 		GUdevDevice *dev = l->data;
 
-		if (g_strcmp0 (trigger_name, g_udev_device_get_sysfs_attr (dev, "name")) == 0) {
+		device_name = g_udev_device_get_sysfs_attr (dev, "name");
+		if (g_strcmp0 (trigger_name_acceltd, device_name) == 0 ||
+			g_strcmp0 (trigger_name_inv, device_name) == 0) {
+
 			g_debug ("Found associated trigger at %s", g_udev_device_get_sysfs_path (dev));
 			has_trigger = TRUE;
+			trigger_name = g_strdup (device_name);
 			break;
 		}
 	}
+	g_free (trigger_name_acceltd);
+	g_free (trigger_name_inv);
 
 	g_list_free_full (devices, g_object_unref);
 	g_clear_object (&client);
@@ -139,7 +151,6 @@ get_trigger_name (GUdevDevice *device)
 
 	g_warning ("Could not find trigger name associated with %s",
 		   g_udev_device_get_sysfs_path (device));
-	g_free (trigger_name);
 	return NULL;
 }
 
@@ -157,11 +168,15 @@ read_orientation (gpointer user_data)
 static gboolean
 iio_buffer_accel_discover (GUdevDevice *device)
 {
+	const gchar * device_name;
 	if (g_strcmp0 (g_udev_device_get_subsystem (device), "iio") != 0)
 		return FALSE;
 
-	if (g_strcmp0 ("accel_3d", g_udev_device_get_sysfs_attr (device, "name")) != 0)
+	device_name = g_udev_device_get_sysfs_attr (device, "name");
+	if (g_strcmp0 ("accel_3d", device_name) != 0 &&
+		g_strcmp0 ("i2c-INVN6500:00", device_name) != 0) {
 		return FALSE;
+	}
 
 	g_debug ("Found accel_3d at %s", g_udev_device_get_sysfs_path (device));
 	return TRUE;
@@ -191,7 +206,7 @@ iio_buffer_accel_open (GUdevDevice        *device,
 		       ReadingsUpdateFunc  callback_func,
 		       gpointer            user_data)
 {
-	char *trigger_name;
+	const gchar *trigger_name;
 
 	drv_data = g_new0 (DrvData, 1);
 
@@ -202,7 +217,6 @@ iio_buffer_accel_open (GUdevDevice        *device,
 		return FALSE;
 	}
 	drv_data->buffer_data = buffer_drv_data_new (device, trigger_name);
-	g_free (trigger_name);
 
 	if (!drv_data->buffer_data) {
 		g_clear_pointer (&drv_data, g_free);
