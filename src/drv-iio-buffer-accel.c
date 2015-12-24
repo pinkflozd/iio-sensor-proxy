@@ -63,9 +63,9 @@ process_scan (IIOSensorData data, DrvData *or_data)
 	/* To match the Pegatron accelerometer code
 	 * (see pega_accel_poll() in asus-laptop.c)
 	 * we invert both x, and y values */
-	accel_x = accel_x;
+	accel_x = -accel_x;
 	accel_y = accel_y;
-	accel_z = accel_z;
+	accel_z = -accel_z;
 
 	//FIXME report errors
 	readings.accel_x = accel_x * scale;
