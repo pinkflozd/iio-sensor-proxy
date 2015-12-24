@@ -597,9 +597,9 @@ accel_changed_func (SensorDriver *driver,
 
 	orientation = data->orientation_quirk[ (int)orientation_calc ( (OrientationUp)data->orientation_quirk_reverse[data->previous_orientation], readings->accel_x, readings->accel_y, readings->accel_z)];
 
-	data->accel_x = readings->accel_x;
-	data->accel_y = readings->accel_y;
-	data->accel_z = readings->accel_z;
+	data->accel_x = readings->accel_z;
+	data->accel_y = readings->accel_x;
+	data->accel_z = readings->accel_y;
 
 	if (data->previous_orientation != orientation) {
 		OrientationUp tmp;
