@@ -54,9 +54,9 @@ process_scan (IIOSensorData data, DrvData *or_data)
 		return 0;
 	}
 
-	process_scan_1(data.data + or_data->buffer_data->scan_size*i, or_data->buffer_data, "in_accel_x", &accel_x, &scale, &present_x);
-	process_scan_1(data.data + or_data->buffer_data->scan_size*i, or_data->buffer_data, "in_accel_z", &accel_y, &scale, &present_y);
-	process_scan_1(data.data + or_data->buffer_data->scan_size*i, or_data->buffer_data, "in_accel_y", &accel_z, &scale, &present_z);
+	process_scan_1(data.data + or_data->buffer_data->scan_size*i, or_data->buffer_data, "in_accel_z", &accel_x, &scale, &present_x);
+	process_scan_1(data.data + or_data->buffer_data->scan_size*i, or_data->buffer_data, "in_accel_y", &accel_y, &scale, &present_y);
+	process_scan_1(data.data + or_data->buffer_data->scan_size*i, or_data->buffer_data, "in_accel_x", &accel_z, &scale, &present_z);
 
 	g_debug ("Read from IIO: %d, %d, %d", accel_x, accel_y, accel_z);
 
@@ -64,8 +64,8 @@ process_scan (IIOSensorData data, DrvData *or_data)
 	 * (see pega_accel_poll() in asus-laptop.c)
 	 * we invert both x, and y values */
 	accel_x = -accel_x;
-	accel_y = accel_y;
-	accel_z = accel_z;
+	accel_y = -accel_y;
+	accel_z = -accel_z;
 
 	//FIXME report errors
 	readings.accel_x = accel_x * scale;
